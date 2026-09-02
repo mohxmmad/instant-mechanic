@@ -107,12 +107,6 @@ docker compose exec web python manage.py migrate
 docker compose exec web python manage.py createsuperuser
 ```
 
-> **Note on volume mount:** `docker-compose.yml` currently runs without a host volume mount (see comment in file) to avoid Docker Desktop file-sharing issues when the repo lives outside `/home` (e.g., `/mnt/storage`). The image `COPY . .` ensures code is baked in; `docker compose up --build` always picks up changes. To enable live-reload, re-add:
-> ```yaml
-> volumes: [".:/app"]
-> ```
-> and ensure your Docker Desktop → Settings → Resources → File sharing includes the repo path. Then use `docker compose up` without `--build` for hot reload.
-
 Verify:
 
 ```bash
