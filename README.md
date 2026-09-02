@@ -297,7 +297,11 @@ Covered:
 
 **Static:** WhiteNoise serves `staticfiles/` (collected at build). `production.py` enforces `DEBUG=False`.
 
-**Migrations / Admin:** `docker compose exec web python manage.py migrate && python manage.py createsuperuser` (local) or Render Shell (prod). Admin at `/admin/` with `Mechanic`/`ServiceRequest`/`User` list displays.
+**Superuser & seed on startup (no shell needed):** Image start runs `apps/core/management/commands/init_prod.py:1` after `migrate` (`Dockerfile:21` + `docker-compose.yml:21`):
+- Creates/updates superuser `admin` / `admin@gmail.com` / `admin` (use for `https://.../admin/`)
+- If no `Mechanic` exists, runs `seed_data` (10 mechanics + 20 requests + demo user). Redeploy on Render or `docker compose up --build` auto-seeds — no manual `createsuperuser` or `seed_data` required. To reset demo data: `docker compose exec web python manage.py seed_data --clear`.
+
+**Migrations / Admin:** Manual fallback still works: `docker compose exec web python manage.py migrate && python manage.py createsuperuser` (local) or Render Shell (prod). Admin at `/admin/` with `Mechanic`/`ServiceRequest`/`User` list displays — login with `admin`/`admin` after first boot.
 
 ## License
 
