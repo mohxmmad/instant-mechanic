@@ -269,40 +269,6 @@ Covered:
 - Mechanics: create, retrieve, PUT, PATCH, DELETE, invalid ID, phone/rating/required validation, search, filter, ordering, pagination
 - Service Requests: creation (PENDING), FK relationship, nonexistent/invalid mechanic, missing fields, blank service, invalid phone/vehicle, list/retrieve, invalid/valid status transitions, auth guard
 
-## Production
-
-**Architecture:** `User → Render Web Service (Gunicorn) → Render Postgres` — local Docker Postgres (`docker-compose.yml:2` `db`) is dev-only; prod uses a managed Render Postgres. The app reads `DATABASE_URL` from env (`config/settings/base.py:64`), so you can point it at any Postgres by changing the env var.
-
-**Deploy as Web Service + Database (manual combo):**
-
-1. **Create database:** Render Dashboard → **New → PostgreSQL** → name `instant-mechanic-db` → region `Oregon` (or nearest) → **Create**. Wait for `Available`, then copy its **Internal Connection String** (preferred) — e.g., `postgres://user:pass@dpg-xxx.oregon-postgres.render.com/db`. Use **External Connection String** only if connecting from outside Render.
-
-2. **Create web service:** **New → Web Service** → connect `mohxmmad/instant-mechanic` repo → branch `prod` → **Runtime: Docker** (uses `Dockerfile:1`) → **Add Environment Variables:**
-   ```
-   DJANGO_SETTINGS_MODULE=config.settings.production
-   SECRET_KEY=<generate 50+ random chars>
-   DATABASE_URL=<paste Internal Connection String from step 1>   # <-- choose your DB URL here
-   ALLOWED_HOSTS=<your-service>.onrender.com
-   # optional: POSTGRES_DB/USER/PASSWORD/HOST/PORT also work if you prefer individual vars over DATABASE_URL
-   ```
-   No code change needed — `base.py:64` `_get_database_config()` checks `DATABASE_URL` first, then falls back to `POSTGRES_*`. To switch databases later, just update `DATABASE_URL` in Render → **Environment** → **Save** → redeploy.
-
-3. **Build & start:** Build runs `Dockerfile:17` `collectstatic`; start runs `Dockerfile:21` `python manage.py migrate --noinput && gunicorn ... --bind 0.0.0.0:${PORT:-8000}`. Migrations run on every start; health check at `/api/v1/health/` (`apps/core/views.py:14`) must return `200`.
-
-4. **Blueprint alternative:** Repo includes `render.yaml:1` (web + db). For one-click provisioning: **New → Blueprint** → connect repo → branch `prod` → **Apply**. Then override `DATABASE_URL` in the web service if you want to point at a different DB.
-
-5. **Verify:** `curl https://<your-service>.onrender.com/api/v1/health/` → `{"status":"healthy","database":"connected"}`. Swagger at `/api/docs/` should show `Mechanic`/`ServiceRequest` (not `ServiceRequestRequest` via `COMPONENT_SPLIT_REQUEST=False`).
-
-`docker-compose.yml:7` still uses `POSTGRES_HOST=db` for local; prod uses `DATABASE_URL` — same image works in both envs.
-
-**Static:** WhiteNoise serves `staticfiles/` (collected at build). `production.py` enforces `DEBUG=False`.
-
-**Superuser & seed on startup (no shell needed):** Image start runs `apps/core/management/commands/init_prod.py:1` after `migrate` (`Dockerfile:21` + `docker-compose.yml:21`):
-- Creates/updates superuser `admin` / `admin@gmail.com` / `admin` (use for `https://.../admin/`)
-- If no `Mechanic` exists, runs `seed_data` (10 mechanics + 20 requests + demo user). Redeploy on Render or `docker compose up --build` auto-seeds — no manual `createsuperuser` or `seed_data` required. To reset demo data: `docker compose exec web python manage.py seed_data --clear`.
-
-**Migrations / Admin:** Manual fallback still works: `docker compose exec web python manage.py migrate && python manage.py createsuperuser` (local) or Render Shell (prod). Admin at `/admin/` with `Mechanic`/`ServiceRequest`/`User` list displays — login with `admin`/`admin` after first boot.
-
 ## License
 
 For internship evaluation only.
