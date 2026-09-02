@@ -271,18 +271,29 @@ Covered:
 
 ## Production
 
-**Architecture:** `User → Render (Gunicorn + Postgres via Blueprint)` — local Docker Postgres is dev-only; prod uses Render Postgres.
+**Architecture:** `User → Render Web Service (Gunicorn) → Render Postgres` — local Docker Postgres (`docker-compose.yml:2` `db`) is dev-only; prod uses a managed Render Postgres. The app reads `DATABASE_URL` from env (`config/settings/base.py:64`), so you can point it at any Postgres by changing the env var.
 
-**Render Blueprint deploy (recommended):**
+**Deploy as Web Service + Database (manual combo):**
 
-1. Push repo to GitHub (see `render.yaml:1` at repo root). Blueprint provisions both `instant-mechanic` web service (Docker, `Dockerfile:1`) and `instant-mechanic-db` Postgres in one go.
-2. In Render Dashboard → **New → Blueprint** → connect `instant-mechanic` repo → select `prod` branch → **Apply**. Render creates web service + database and injects `DATABASE_URL` automatically (`render.yaml:13` `fromDatabase`).
-3. Render auto-generates `SECRET_KEY` and sets `DJANGO_SETTINGS_MODULE=config.settings.production`, `ALLOWED_HOSTS=.onrender.com`. Adjust `ALLOWED_HOSTS` if using custom domain.
-4. Build: Docker `collectstatic` runs at `Dockerfile:17`; no extra build command needed.
-5. Start: `Dockerfile:21` → `python manage.py migrate --noinput && gunicorn ... --bind 0.0.0.0:${PORT:-8000}` — migrations run on every start; health check at `/api/v1/health/` (`apps/core/views.py:14`) must return 200.
-6. Alternative manual setup (without Blueprint): New Web Service → Docker → connect repo → add Postgres manually → copy its `DATABASE_URL` into web service env vars alongside `DJANGO_SETTINGS_MODULE=config.settings.production`, `SECRET_KEY`, `ALLOWED_HOSTS`.
+1. **Create database:** Render Dashboard → **New → PostgreSQL** → name `instant-mechanic-db` → region `Oregon` (or nearest) → **Create**. Wait for `Available`, then copy its **Internal Connection String** (preferred) — e.g., `postgres://user:pass@dpg-xxx.oregon-postgres.render.com/db`. Use **External Connection String** only if connecting from outside Render.
 
-`config/settings/base.py:64` `_get_database_config()` parses `DATABASE_URL` (with `?sslmode=require` if present) or falls back to `POSTGRES_*`. No code change needed between local (host `db` via `docker-compose.yml:7`) and prod (Render Postgres via `DATABASE_URL`).
+2. **Create web service:** **New → Web Service** → connect `mohxmmad/instant-mechanic` repo → branch `prod` → **Runtime: Docker** (uses `Dockerfile:1`) → **Add Environment Variables:**
+   ```
+   DJANGO_SETTINGS_MODULE=config.settings.production
+   SECRET_KEY=<generate 50+ random chars>
+   DATABASE_URL=<paste Internal Connection String from step 1>   # <-- choose your DB URL here
+   ALLOWED_HOSTS=<your-service>.onrender.com
+   # optional: POSTGRES_DB/USER/PASSWORD/HOST/PORT also work if you prefer individual vars over DATABASE_URL
+   ```
+   No code change needed — `base.py:64` `_get_database_config()` checks `DATABASE_URL` first, then falls back to `POSTGRES_*`. To switch databases later, just update `DATABASE_URL` in Render → **Environment** → **Save** → redeploy.
+
+3. **Build & start:** Build runs `Dockerfile:17` `collectstatic`; start runs `Dockerfile:21` `python manage.py migrate --noinput && gunicorn ... --bind 0.0.0.0:${PORT:-8000}`. Migrations run on every start; health check at `/api/v1/health/` (`apps/core/views.py:14`) must return `200`.
+
+4. **Blueprint alternative:** Repo includes `render.yaml:1` (web + db). For one-click provisioning: **New → Blueprint** → connect repo → branch `prod` → **Apply**. Then override `DATABASE_URL` in the web service if you want to point at a different DB.
+
+5. **Verify:** `curl https://<your-service>.onrender.com/api/v1/health/` → `{"status":"healthy","database":"connected"}`. Swagger at `/api/docs/` should show `Mechanic`/`ServiceRequest` (not `ServiceRequestRequest` via `COMPONENT_SPLIT_REQUEST=False`).
+
+`docker-compose.yml:7` still uses `POSTGRES_HOST=db` for local; prod uses `DATABASE_URL` — same image works in both envs.
 
 **Static:** WhiteNoise serves `staticfiles/` (collected at build). `production.py` enforces `DEBUG=False`.
 
