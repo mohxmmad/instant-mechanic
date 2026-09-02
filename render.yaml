@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: instant-mechanic
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/v1/health/
+    autoDeploy: false
+    branch: prod
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: instant-mechanic-db
+          property: connectionString
+      - key: SECURE_SSL_REDIRECT
+        value: "false"
+
+databases:
+  - name: instant-mechanic-db
+    plan: starter
+    databaseName: instant_mechanic
+    user: instant_mechanic
