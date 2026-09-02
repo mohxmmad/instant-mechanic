@@ -2,14 +2,11 @@ import re
 from rest_framework import serializers
 
 PHONE_REGEX = re.compile(r"^\+?91?[6-9]\d{9}$|^\+?\d{7,15}$")
-# Accepts Indian 10-digit or international format; simplified
 
 def validate_phone(value: str):
-    # Normalize: remove spaces, dashes
     normalized = re.sub(r"[\s\-]", "", value)
     if not re.fullmatch(r"\+?\d{7,15}", normalized):
         raise serializers.ValidationError("Invalid phone number. Must be 7-15 digits, optionally starting with +.")
-    # For Indian numbers without country code, ensure 10 digits starting 6-9
     digits = normalized.lstrip("+")
     if len(digits) == 10 and digits[0] not in "6789":
         raise serializers.ValidationError("Invalid Indian phone number. Must start with 6-9.")
@@ -17,7 +14,6 @@ def validate_phone(value: str):
         raise serializers.ValidationError("Phone number must be between 7 and 15 digits.")
     return normalized
 
-# Allowed services - keep controlled list but allow flexibility
 ALLOWED_SERVICES = {
     "engine repair",
     "oil change",
@@ -43,7 +39,6 @@ def validate_services(value):
         if not isinstance(s, str) or not s.strip():
             raise serializers.ValidationError("Each service must be a non-empty string.")
         svc = s.strip().lower()
-        # Allow any string but warn if not in allowed; we accept any for flexibility but enforce non-empty
         normalized.append(s.strip())
     if len(set(n.lower() for n in normalized)) != len(normalized):
         raise serializers.ValidationError("Duplicate services not allowed.")

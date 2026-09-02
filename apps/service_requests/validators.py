@@ -15,14 +15,9 @@ def validate_phone(value: str):
 VEHICLE_REGEX = re.compile(r"^[A-Z]{2}\s?\d{1,2}\s?[A-Z]{1,3}\s?\d{1,4}$", re.IGNORECASE)
 
 def validate_vehicle_number(value: str):
-    # Accept Indian format like MH01AB1234, DL 8C AB 1234 etc, also simpler alphanumeric with spaces/dashes
     normalized = value.strip().upper().replace("-", " ")
-    # Remove extra spaces
     normalized = re.sub(r"\s+", " ", normalized)
-    # Basic check: must be alphanumeric, 5-15 chars ignoring spaces
     alnum = re.sub(r"\s+", "", normalized)
     if not re.fullmatch(r"[A-Z0-9]{5,15}", alnum):
         raise serializers.ValidationError("Invalid vehicle number. Must be 5-15 alphanumeric characters (e.g., MH01AB1234).")
-    # Optionally enforce Indian pattern but allow flexible
-    # If it looks like Indian format, validate stricter; otherwise accept generic
     return normalized
